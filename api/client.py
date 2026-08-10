@@ -48,6 +48,8 @@ class CheckMKClient:
 
     def __init__(self, config: CheckMKConfig, skip_url_detection: bool = False):
         self.config = config
+        self.is_legacy = False
+        self._legacy_webapi_url = None
         self._setup_headers()
         self._ssl_context = self._create_ssl_context()
 
@@ -108,6 +110,38 @@ class CheckMKClient:
                 debug_results.append(f"HTTP {e.code} ({e.reason}): {base_url}")
             except Exception as e:
                 debug_results.append(f"ERROR ({str(e)}): {base_url}")
+
+        # REST API not found — probe for CheckMK 1.6.x webapi.py
+        webapi_patterns = [
+            f"{self.config.server_url}/{self.config.site}/check_mk/webapi.py",
+            f"{self.config.server_url}/check_mk/webapi.py",
+        ]
+        for webapi_url in webapi_patterns:
+            try:
+                probe_params = urllib.parse.urlencode({
+                    "action": "get_all_hosts",
+                    "_username": self.config.username,
+                    "_secret": self.config.password,
+                    "output_format": "json",
+                })
+                probe_url = f"{webapi_url}?{probe_params}"
+                debug_results.append(f"Testing legacy webapi: {webapi_url}")
+                req = urllib.request.Request(probe_url)
+                with urllib.request.urlopen(
+                    req, context=self._ssl_context, timeout=self.config.timeout
+                ) as response:
+                    if response.status == 200:
+                        raw = response.read().decode()
+                        parsed = json.loads(raw)
+                        if parsed.get("result_code") == 0:
+                            debug_results.append(f"LEGACY SUCCESS: {webapi_url}")
+                            self._debug_results = debug_results
+                            self._legacy_webapi_url = webapi_url
+                            self.is_legacy = True
+                            logger.info(f"Detected legacy webapi URL: {webapi_url}")
+                            return webapi_url
+            except Exception as ex:
+                debug_results.append(f"ERROR legacy ({str(ex)}): {webapi_url}")
 
         # Store debug results for troubleshooting
         self._debug_results = debug_results

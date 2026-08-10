@@ -33,6 +33,39 @@ class ConfigurationHandler(BaseHandler):
         sites = arguments.get("sites", [])
         force = arguments.get("force_foreign_changes", False)
 
+        # --- Legacy CheckMK 1.6 path ---------------------------------
+        # The 1.6 webapi has no `pending_changes` collection (the legacy
+        # adapter stubs that to an empty list). It also doesn't honour
+        # the `domain-types/activation_run/...` REST URL that the 2.x
+        # path POSTs to directly below. Route through the legacy
+        # dispatcher instead, which calls `webapi.py?action=activate_changes`.
+        # The 1.6 action is a no-op when nothing is pending, so we can
+        # invoke it unconditionally.
+        if getattr(self.client, "is_legacy", False):
+            try:
+                self.client.post(
+                    "domain-types/activation_run/actions/activate-changes/invoke",
+                    data={
+                        "sites": sites if sites else None,
+                        "force_foreign_changes": force,
+                    },
+                )
+            except Exception as e:
+                return self.error_response("Legacy activation failed", str(e))
+            return [
+                {
+                    "type": "text",
+                    "text": (
+                        "✅ **Changes Activation Triggered (legacy 1.6 webapi)**\n\n"
+                        f"Sites: {', '.join(sites) if sites else 'all dirty sites'}\n"
+                        f"Force foreign changes: {force}\n\n"
+                        "CheckMK 1.6's `activate_changes` action runs synchronously and\n"
+                        "is a no-op when nothing is pending. Check the master's WATO\n"
+                        "GUI for per-site replication status."
+                    ),
+                }
+            ]
+
         # First, check pending changes to get current state
         pending_result = self.client.get("domain-types/activation_run/collections/pending_changes")
 

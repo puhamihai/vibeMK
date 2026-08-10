@@ -44,6 +44,8 @@ class ConnectionHandler(BaseHandler):
 
             if result.get("success"):
                 data = result["data"]
+                is_legacy = getattr(self.client, "is_legacy", False)
+                api_mode = "Legacy (1.6.x webapi.py)" if is_legacy else "Modern (REST 2.0+)"
                 return [
                     {
                         "type": "text",
@@ -54,6 +56,7 @@ class ConnectionHandler(BaseHandler):
                             f"👤 User: {self.client.config.username}\n"
                             f"🔒 SSL Verify: {self.client.config.verify_ssl}\n"
                             f"🔗 API Base URL: {self.client.api_base_url}\n"
+                            f"⚙️  API Mode: {api_mode}\n"
                             f"📊 Version: {data.get('version', 'Unknown')}\n"
                             f"📦 Edition: {data.get('edition', 'Unknown')}"
                         ),
@@ -134,29 +137,45 @@ class ConnectionHandler(BaseHandler):
 
     async def _test_all_endpoints(self) -> List[Dict[str, Any]]:
         """Test all major API endpoints"""
-        endpoints = [
-            ("version", "Version info"),
-            ("domain-types/host_config/collections/all", "Host Configs"),
-            ("domain-types/service/collections/all", "Services"),
-            ("domain-types/folder_config/collections/all", "Folders"),
-            ("domain-types/downtime/collections/all", "Downtimes"),
-            ("domain-types/acknowledge/collections/all", "Acknowledgments"),
-            ("domain-types/activation_run/collections/all", "Activations"),
-            ("domain-types/user_config/collections/all", "Users"),
-            ("domain-types/host_group_config/collections/all", "Host Groups"),
-            ("domain-types/service_group_config/collections/all", "Service Groups"),
-        ]
+        is_legacy = getattr(self.client, "is_legacy", False)
+
+        if is_legacy:
+            endpoints = [
+                ("version", "Version info"),
+                ("domain-types/host_config/collections/all", "Hosts (get_all_hosts)"),
+                ("domain-types/folder_config/collections/all", "Folders (get_all_folders)"),
+                ("domain-types/host_group_config/collections/all", "Host Groups (get_all_groups)"),
+                ("domain-types/service_group_config/collections/all", "Service Groups"),
+                ("domain-types/user_config/collections/all", "Users (get_all_users)"),
+                ("domain-types/downtime/collections/all", "Downtimes (get_all_downtimes)"),
+                ("domain-types/host_tag_group/collections/all", "Host Tags (get_hosttags)"),
+                ("domain-types/activation_run/collections/pending_changes", "Pending Changes"),
+            ]
+        else:
+            endpoints = [
+                ("version", "Version info"),
+                ("domain-types/host_config/collections/all", "Host Configs"),
+                ("domain-types/service/collections/all", "Services"),
+                ("domain-types/folder_config/collections/all", "Folders"),
+                ("domain-types/downtime/collections/all", "Downtimes"),
+                ("domain-types/acknowledge/collections/all", "Acknowledgments"),
+                ("domain-types/activation_run/collections/all", "Activations"),
+                ("domain-types/user_config/collections/all", "Users"),
+                ("domain-types/host_group_config/collections/all", "Host Groups"),
+                ("domain-types/service_group_config/collections/all", "Service Groups"),
+            ]
 
         results = []
         for endpoint, desc in endpoints:
             try:
                 result = self.client.get(endpoint)
                 status = "✅" if result.get("success") else "❌"
-                results.append(f"{status} {endpoint} - {desc} (HTTP {result.get('status', 'unknown')})")
+                results.append(f"{status} {desc} (HTTP {result.get('status', 'unknown')})")
             except Exception as e:
-                results.append(f"❌ {endpoint} - {desc} (Error: {str(e)})")
+                results.append(f"❌ {desc} (Error: {str(e)})")
 
-        return [{"type": "text", "text": f"🧪 **API Endpoint Test Results**\n\n" + "\n".join(results)}]
+        mode_label = "Legacy 1.6.x webapi.py" if is_legacy else "Modern REST API"
+        return [{"type": "text", "text": f"🧪 **API Endpoint Test Results** [{mode_label}]\n\n" + "\n".join(results)}]
 
     async def _get_version(self) -> List[Dict[str, Any]]:
         """Get CheckMK version information"""
