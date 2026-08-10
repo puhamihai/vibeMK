@@ -10,9 +10,21 @@ from api.exceptions import (
     CheckMKPermissionError,
     CheckMKValidationError,
 )
+from api.legacy_client import LegacyCheckMKClient
+
+
+def create_client(config) -> CheckMKClient:
+    """Factory: returns LegacyCheckMKClient for 1.6.x, CheckMKClient otherwise."""
+    client = CheckMKClient(config)
+    if client.is_legacy and client._legacy_webapi_url:
+        return LegacyCheckMKClient(config, client._legacy_webapi_url)
+    return client
+
 
 __all__ = [
     "CheckMKClient",
+    "LegacyCheckMKClient",
+    "create_client",
     "CheckMKError",
     "CheckMKConnectionError",
     "CheckMKAuthenticationError",

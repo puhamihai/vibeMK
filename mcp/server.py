@@ -22,7 +22,7 @@ import json
 import sys
 from typing import Any, Dict, Optional
 
-from api import CheckMKClient
+from api import CheckMKClient, create_client
 from config import CheckMKConfig, MCPConfig
 from handlers.acknowledgements import AcknowledgementHandler
 from handlers.configuration import ConfigurationHandler
@@ -180,10 +180,10 @@ class CheckMKMCPServer:
             self.config.validate()
             logger.info("CheckMK configuration validated successfully")
 
-            # Setup client and handlers
+            # Setup client and handlers (auto-detects legacy 1.6.x vs modern REST)
             logger.debug("Creating CheckMK API client...")
-            self.client = CheckMKClient(self.config)
-            logger.info("CheckMK API client created")
+            self.client = create_client(self.config)
+            logger.info(f"CheckMK API client created (legacy={getattr(self.client, 'is_legacy', False)})")
 
             logger.debug("Setting up tool handlers...")
             self._setup_handlers()
