@@ -35,8 +35,8 @@ class ConfigurationHandler(BaseHandler):
 
         # --- Legacy CheckMK 1.6 path ---------------------------------
         # The 1.6 webapi has no `pending_changes` collection (the legacy
-        # adapter stubs that to an empty list). It also doesn't honour
-        # the `domain-types/activation_run/...` REST URL that the 2.x
+        # adapter scrapes it from the activation page instead). It also doesn't
+        # honour the `domain-types/activation_run/...` REST URL that the 2.x
         # path POSTs to directly below. Route through the legacy
         # dispatcher instead, which calls `webapi.py?action=activate_changes`.
         # The 1.6 action is a no-op when nothing is pending, so we can

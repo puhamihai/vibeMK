@@ -1067,7 +1067,7 @@ class HostHandler(BaseHandler):
                 tag_name = key[4:]  # Remove 'tag_' prefix
                 if not self._validate_tag_name(tag_name):
                     errors.append(
-                        f"Invalid tag name: '{tag_name}'. Must contain only letters, numbers, and underscores"
+                        f"Invalid tag name: '{tag_name}'. Must contain only letters, numbers, underscores, hyphens, and dots"
                     )
                 if not isinstance(value, str):
                     errors.append(f"Tag value for '{key}' must be a string")
@@ -1094,6 +1094,7 @@ class HostHandler(BaseHandler):
 
         import re
 
-        # CheckMK tag name pattern: letters, numbers, underscores
-        pattern = r"^[a-zA-Z0-9_]+$"
+        # CheckMK tag IDs also allow hyphens and dots, not just word chars --
+        # e.g. tag IDs such as APP-OUT or APP-CONTROLLER-OUT.
+        pattern = r"^[a-zA-Z0-9_.-]+$"
         return re.match(pattern, tag_name) is not None

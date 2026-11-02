@@ -473,6 +473,21 @@ class ServiceHandler(BaseHandler):
             discovery_data = result.get("data", {})
             job_id = discovery_data.get("job_id") if "job_id" in discovery_data else "N/A"
 
+            # CheckMK 1.6 discovers synchronously; report what it actually did.
+            run = discovery_data.get("extensions", {})
+            if run.get("state") == "finished":
+                outcome = run.get("results") or {target_hosts[0]: run.get("result", "unknown")}
+                lines = [f"• {h}: {r}" for h, r in outcome.items()]
+                lines += [f"• ❌ {h}: {err}" for h, err in run.get("failed_hosts", {}).items()]
+                return [
+                    {
+                        "type": "text",
+                        "text": f"✅ **Service Discovery Completed** (mode {mode})\n\n"
+                        + "\n".join(lines)
+                        + "\n\n⚠️ Activate changes to apply the discovered services.",
+                    }
+                ]
+
             response_text = (
                 f"✅ **Service Discovery Started**\n\n"
                 f"Hosts: {', '.join(target_hosts[:3])}"

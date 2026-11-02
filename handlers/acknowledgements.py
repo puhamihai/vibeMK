@@ -218,7 +218,14 @@ class AcknowledgementHandler:
                 # Acknowledgements typically have certain markers or are persistent comments
                 # In CheckMK 2.4, we filter by comment content or other indicators
                 comment_text = extensions.get("comment", "").lower()
-                if "acknowledge" in comment_text or "ack" in comment_text or extensions.get("persistent", False):
+                # entry_type 4 is the livestatus marker for an acknowledgement
+                # comment; acks rarely say "ack" in their text (e.g. a ticket id).
+                if (
+                    extensions.get("entry_type") == 4
+                    or "acknowledge" in comment_text
+                    or "ack" in comment_text
+                    or extensions.get("persistent", False)
+                ):
                     acknowledgements.append(comment)
 
             if not acknowledgements:
@@ -335,10 +342,14 @@ class AcknowledgementHandler:
                     is_service = extensions.get("is_service", False)
 
                     # Check if this is an acknowledgement for the specified host/service
-                    if comment_host == host_name and ("acknowledge" in comment_text or "ack" in comment_text):
+                    is_ack = extensions.get("entry_type") == 4 or "acknowledge" in comment_text or "ack" in comment_text
+                    if comment_host == host_name and is_ack:
 
-                        # If service_description is specified, only match service acknowledgements
-                        if service_description and not is_service:
+                        # If service_description is specified, only match that service's
+                        # acknowledgements - not every service acknowledgement on the host
+                        if service_description and (
+                            not is_service or extensions.get("service_description") != service_description
+                        ):
                             continue
                         # If no service_description, only match host acknowledgements
                         if not service_description and is_service:

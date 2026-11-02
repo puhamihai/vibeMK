@@ -50,6 +50,26 @@ class DiscoveryHandler:
 
             data = {"host_name": host_name, "mode": mode}
 
+            if getattr(self.client, "is_legacy", False):
+                # 1.6 discovers synchronously and has no separate bulk API, so the
+                # bulk fallback below would only retry the same call - or, for a
+                # refused mode, quietly retry it as a different one.
+                try:
+                    result = self.client.post("domain-types/service_discovery_run/actions/start/invoke", data=data)
+                except Exception as e:
+                    return [{"type": "text", "text": f"❌ Service discovery failed for {host_name}: {e}"}]
+                run = result.get("data", {}).get("extensions", {})
+                return [
+                    {
+                        "type": "text",
+                        "text": f"✅ **Service Discovery Completed**\n\n"
+                        f"Host: **{host_name}**\n"
+                        f"Mode: {mode}\n"
+                        f"Result: {run.get('result', 'unknown')}\n\n"
+                        f"⚠️ Activate changes to apply the discovered services.",
+                    }
+                ]
+
             try:
                 result = self.client.post("domain-types/service_discovery_run/actions/start/invoke", data=data)
 
@@ -163,6 +183,20 @@ class DiscoveryHandler:
 
             if result.get("success"):
                 job_id = result.get("data", {}).get("id", "Unknown")
+                job = result.get("data", {}).get("extensions", {})
+                if job.get("state") == "finished":
+                    # CheckMK 1.6: the hosts were discovered one by one inside this call.
+                    lines = [f"  • {h}: {r}" for h, r in job.get("results", {}).items()]
+                    lines += [f"  • ❌ {h}: {err}" for h, err in job.get("failed_hosts", {}).items()]
+                    return [
+                        {
+                            "type": "text",
+                            "text": f"✅ **Bulk Discovery Completed** (mode {job.get('mode')})\n\n"
+                            f"Job ID: **{job_id}**\n"
+                            + "\n".join(lines)
+                            + "\n\n⚠️ Activate changes to apply the discovered services.",
+                        }
+                    ]
                 return [
                     {
                         "type": "text",
